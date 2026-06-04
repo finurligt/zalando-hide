@@ -3,23 +3,43 @@
 const STORAGE_KEY = 'hiddenArticles';
 let hiddenArticles = {};
 
+// Extract article ID from data-entity-id="ern:product::QM422O00T-Q11"
+// or fall back to the last WORD-WORD segment before .html in a product URL
 function extractArticleId(card) {
-  const anchor = card.querySelector('a[href]');
-  if (!anchor) return null;
-  const match = anchor.getAttribute('href').match(/\/([A-Z0-9]+-[A-Z0-9]+)\.html/i);
-  return match ? match[1].toUpperCase() : null;
+  const entityEl = card.matches('[data-entity-id^="ern:product::"]')
+    ? card
+    : card.querySelector('[data-entity-id^="ern:product::"]');
+  if (entityEl) {
+    const id = entityEl.getAttribute('data-entity-id').split('::').pop();
+    if (id) return id.toUpperCase();
+  }
+
+  const anchor = card.querySelector('a[href*=".html"]');
+  if (anchor) {
+    const match = anchor.getAttribute('href').match(/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
+    if (match) return match[1].toUpperCase();
+  }
+
+  return null;
 }
 
 function findProductCards(root) {
-  const primary = Array.from(root.querySelectorAll('[data-testid="product-card"]'));
-  if (primary.length > 0) return primary;
+  // Primary: stable data-entity-id attribute Zalando uses for products
+  const entityEls = Array.from(root.querySelectorAll('[data-entity-id^="ern:product::"]'));
+  if (entityEls.length > 0) {
+    const seen = new Set();
+    return entityEls.map(el => el.closest('li') || el).filter(el => {
+      if (seen.has(el)) return false;
+      seen.add(el);
+      return true;
+    });
+  }
 
   // Fallback: find product links, walk up to card container
-  const links = root.querySelectorAll('a[href]');
   const seen = new Set();
   const cards = [];
-  for (const link of links) {
-    if (!/\/[A-Z0-9]+-[A-Z0-9]+\.html/i.test(link.getAttribute('href') || '')) continue;
+  for (const link of root.querySelectorAll('a[href*=".html"]')) {
+    if (!/([A-Z0-9]+-[A-Z0-9]+)\.html$/i.test(link.getAttribute('href') || '')) continue;
     const container = link.closest('article, li') || link.parentElement;
     if (container && container !== root && !seen.has(container)) {
       seen.add(container);
@@ -30,9 +50,8 @@ function findProductCards(root) {
 }
 
 function isProductCard(node) {
-  if (node.matches('[data-testid="product-card"]')) return true;
-  const anchor = node.querySelector('a[href]');
-  return !!(anchor && /\/[A-Z0-9]+-[A-Z0-9]+\.html/i.test(anchor.getAttribute('href') || ''));
+  return node.matches('[data-entity-id^="ern:product::"]') ||
+    !!node.querySelector('[data-entity-id^="ern:product::"]');
 }
 
 function hideCard(card) {
@@ -49,6 +68,9 @@ function saveHiddenArticle(articleId) {
 }
 
 function injectHideButton(card, articleId) {
+  // Inject into the article element (visual card) rather than the LI wrapper
+  const target = card.querySelector('article') || card;
+
   const btn = document.createElement('button');
   btn.className = 'zh-hide-btn';
   btn.setAttribute('aria-label', 'Hide this product');
@@ -62,11 +84,11 @@ function injectHideButton(card, articleId) {
     hideCard(card);
   });
 
-  if (getComputedStyle(card).position === 'static') {
-    card.style.position = 'relative';
+  if (getComputedStyle(target).position === 'static') {
+    target.style.position = 'relative';
   }
 
-  card.appendChild(btn);
+  target.appendChild(btn);
 }
 
 function processCard(card) {

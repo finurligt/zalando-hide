@@ -23,7 +23,8 @@
   user-select: none;
 }
 
-[data-zalando-hide-processed]:hover .zh-hide-btn {
+[data-zalando-hide-processed]:hover .zh-hide-btn,
+article:hover .zh-hide-btn {
   opacity: 1;
 }
 
