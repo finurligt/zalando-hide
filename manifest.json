@@ -58,6 +58,10 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "data_collection_permissions": {
+    "required": [],
+    "optional": []
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "zalando-hide@local",
