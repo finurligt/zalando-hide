@@ -32,3 +32,40 @@
   outline-offset: 2px;
   opacity: 1;
 }
+
+/* Product detail page floating button */
+.zh-pdp-btn {
+  position: fixed;
+  bottom: 100px;
+  right: 20px;
+  z-index: 99999;
+
+  padding: 9px 18px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+
+  background: rgba(30, 30, 30, 0.85);
+  color: #fff;
+  font-size: 13px;
+  font-family: sans-serif;
+  white-space: nowrap;
+
+  transition: background 0.15s ease;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+
+.zh-pdp-btn:hover {
+  background: rgba(210, 30, 30, 0.9);
+}
+
+.zh-pdp-btn.zh-pdp-hidden {
+  background: rgba(30, 30, 30, 0.5);
+  color: #aaa;
+}
+
+.zh-pdp-btn.zh-pdp-hidden:hover {
+  background: rgba(30, 110, 30, 0.9);
+  color: #fff;
+}

@@ -160,12 +160,51 @@ function startObserver() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
+function initProductPage(articleId) {
+  const btn = document.createElement('button');
+  btn.className = 'zh-pdp-btn';
+
+  function update() {
+    if (hiddenArticles[articleId]) {
+      btn.textContent = 'Hidden — click to restore';
+      btn.classList.add('zh-pdp-hidden');
+    } else {
+      btn.textContent = 'Hide this item';
+      btn.classList.remove('zh-pdp-hidden');
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    if (hiddenArticles[articleId]) {
+      delete hiddenArticles[articleId];
+      chrome.storage.local.get(STORAGE_KEY, (data) => {
+        const stored = data[STORAGE_KEY] || {};
+        delete stored[articleId];
+        chrome.storage.local.set({ [STORAGE_KEY]: stored });
+      });
+    } else {
+      saveHiddenArticle(articleId);
+    }
+    update();
+  });
+
+  update();
+  document.body.appendChild(btn);
+}
+
 function init() {
   chrome.storage.local.get(STORAGE_KEY, (data) => {
     hiddenArticles = data[STORAGE_KEY] || {};
+
+    // Check if we're on a product detail page
+    const pdpMatch = location.pathname.match(/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
+    if (pdpMatch) {
+      initProductPage(pdpMatch[1].toUpperCase());
+      return;
+    }
+
     processBatch(findProductCards(document));
     startObserver();
-    // Catch cards that load progressively (lazy rendering / SPA hydration)
     setTimeout(rescanUnprocessed, 300);
     setTimeout(rescanUnprocessed, 1000);
     setTimeout(rescanUnprocessed, 3000);
