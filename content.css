@@ -23,11 +23,6 @@
   user-select: none;
 }
 
-[data-zalando-hide-processed]:hover .zh-hide-btn,
-article:hover .zh-hide-btn {
-  opacity: 1;
-}
-
 .zh-hide-btn:hover {
   background-color: rgba(210, 30, 30, 0.9);
 }

@@ -75,7 +75,6 @@ function saveHiddenArticle(articleId) {
 }
 
 function injectHideButton(card, articleId) {
-  // Inject into the article element (visual card) rather than the LI wrapper
   const target = card.querySelector('article') || card;
 
   const btn = document.createElement('button');
@@ -90,6 +89,10 @@ function injectHideButton(card, articleId) {
     saveHiddenArticle(articleId);
     hideCard(card);
   });
+
+  // Use JS events instead of CSS :hover — more reliable across React re-renders
+  target.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+  target.addEventListener('mouseleave', () => { btn.style.opacity = '0'; });
 
   if (getComputedStyle(target).position === 'static') {
     target.style.position = 'relative';
@@ -128,19 +131,14 @@ function processBatch(cards) {
 }
 
 function startObserver() {
-  const observer = new MutationObserver((mutations) => {
-    const newCards = [];
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node.nodeType !== Node.ELEMENT_NODE) continue;
-        if (isProductCard(node)) {
-          newCards.push(node);
-        } else {
-          newCards.push(...findProductCards(node));
-        }
-      }
-    }
-    if (newCards.length > 0) processBatch(newCards);
+  let rafPending = false;
+  const observer = new MutationObserver(() => {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      rescanUnprocessed();
+    });
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
@@ -151,6 +149,10 @@ function init() {
     hiddenArticles = data[STORAGE_KEY] || {};
     processBatch(findProductCards(document));
     startObserver();
+    // Catch cards that load progressively after the initial scan
+    setTimeout(rescanUnprocessed, 300);
+    setTimeout(rescanUnprocessed, 1000);
+    setTimeout(rescanUnprocessed, 3000);
   });
 }
 
