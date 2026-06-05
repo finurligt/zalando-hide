@@ -33,6 +33,12 @@
   opacity: 1;
 }
 
+@media (pointer: coarse) {
+  .zh-hide-btn {
+    opacity: 1;
+  }
+}
+
 /* Product detail page floating button */
 .zh-pdp-btn {
   position: fixed;
