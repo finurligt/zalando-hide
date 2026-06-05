@@ -3,8 +3,6 @@
 const STORAGE_KEY = 'hiddenArticles';
 let hiddenArticles = {};
 
-// Extract article ID from data-entity-id="ern:product::QM422O00T-Q11"
-// or fall back to the last WORD-WORD segment before .html in a product URL
 function extractArticleId(card) {
   const entityEl = card.matches('[data-entity-id^="ern:product::"]')
     ? card
@@ -14,55 +12,58 @@ function extractArticleId(card) {
     if (id) return id.toUpperCase();
   }
 
-  const anchor = card.querySelector('a[href*=".html"]');
+  const anchor = card.querySelector('a[href]');
   if (anchor) {
-    const match = anchor.getAttribute('href').match(/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
-    if (match) return match[1].toUpperCase();
+    const href = anchor.getAttribute('href');
+    try {
+      const path = new URL(href, location.href).pathname;
+      const match = path.match(/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
+      if (match) return match[1].toUpperCase();
+    } catch (_) {}
   }
 
   return null;
 }
 
-function findProductCards(root) {
-  // Primary: stable data-entity-id attribute Zalando uses for products
-  const entityEls = Array.from(root.querySelectorAll('[data-entity-id^="ern:product::"]'));
-  if (entityEls.length > 0) {
-    const seen = new Set();
-    return entityEls.map(el => el.closest('li') || el).filter(el => {
-      if (seen.has(el)) return false;
-      seen.add(el);
-      return true;
-    });
+// Product URLs are root-level single-segment paths ending in WORD-WORD.html
+// e.g. /brand-name-slug-qm422o00t-q11.html — NOT /faq/some-article.html
+function isProductHref(href) {
+  if (!href) return false;
+  try {
+    const path = new URL(href, location.href).pathname;
+    return /^\/[^/]*[A-Z0-9]+-[A-Z0-9]+\.html$/i.test(path);
+  } catch (_) {
+    return false;
   }
+}
 
-  // Fallback: find product links, walk up to card container
+function findProductCards(root) {
   const seen = new Set();
   const cards = [];
-  for (const link of root.querySelectorAll('a[href*=".html"]')) {
-    if (!/([A-Z0-9]+-[A-Z0-9]+)\.html$/i.test(link.getAttribute('href') || '')) continue;
-    const container = link.closest('article, li') || link.parentElement;
-    if (container && container !== root && !seen.has(container)) {
-      seen.add(container);
-      cards.push(container);
+
+  function addCard(el) {
+    const card = el.closest('li') || el;
+    if (!seen.has(card)) {
+      seen.add(card);
+      cards.push(card);
     }
   }
+
+  // Primary: data-entity-id (reliable but may only exist on visible cards)
+  for (const el of root.querySelectorAll('[data-entity-id^="ern:product::"]')) {
+    addCard(el);
+  }
+
+  // Secondary: product URL pattern — catches all cards regardless of data-entity-id
+  for (const link of root.querySelectorAll('a[href]')) {
+    if (isProductHref(link.getAttribute('href'))) addCard(link);
+  }
+
   return cards;
-}
-
-function isProductCard(node) {
-  return node.matches('[data-entity-id^="ern:product::"]') ||
-    !!node.querySelector('[data-entity-id^="ern:product::"]');
-}
-
-function rescanUnprocessed() {
-  const unprocessed = findProductCards(document).filter(c => !c.dataset.zalandoHideProcessed);
-  if (unprocessed.length > 0) processBatch(unprocessed);
 }
 
 function hideCard(card) {
   card.style.setProperty('display', 'none', 'important');
-  // Grid reflow may cause React to replace neighboring card elements
-  setTimeout(rescanUnprocessed, 150);
 }
 
 function saveHiddenArticle(articleId) {
@@ -90,7 +91,6 @@ function injectHideButton(card, articleId) {
     hideCard(card);
   });
 
-  // Use JS events instead of CSS :hover — more reliable across React re-renders
   target.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
   target.addEventListener('mouseleave', () => { btn.style.opacity = '0'; });
 
@@ -118,6 +118,23 @@ function processCard(card) {
   injectHideButton(card, articleId);
 }
 
+function rescanUnprocessed() {
+  const toProcess = [];
+  for (const card of findProductCards(document)) {
+    if (!card.dataset.zalandoHideProcessed) {
+      toProcess.push(card);
+    } else if (card.dataset.zalandoArticleId && !hiddenArticles[card.dataset.zalandoArticleId]) {
+      // Re-inject if React replaced the article and the button is gone
+      const article = card.querySelector('article');
+      if (article && !article.querySelector('.zh-hide-btn')) {
+        delete card.dataset.zalandoHideProcessed;
+        toProcess.push(card);
+      }
+    }
+  }
+  if (toProcess.length > 0) processBatch(toProcess);
+}
+
 function processBatch(cards) {
   if (cards.length === 0) return;
   const CHUNK = 20;
@@ -140,7 +157,6 @@ function startObserver() {
       rescanUnprocessed();
     });
   });
-
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
@@ -149,7 +165,7 @@ function init() {
     hiddenArticles = data[STORAGE_KEY] || {};
     processBatch(findProductCards(document));
     startObserver();
-    // Catch cards that load progressively after the initial scan
+    // Catch cards that load progressively (lazy rendering / SPA hydration)
     setTimeout(rescanUnprocessed, 300);
     setTimeout(rescanUnprocessed, 1000);
     setTimeout(rescanUnprocessed, 3000);
