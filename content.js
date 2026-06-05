@@ -54,8 +54,15 @@ function isProductCard(node) {
     !!node.querySelector('[data-entity-id^="ern:product::"]');
 }
 
+function rescanUnprocessed() {
+  const unprocessed = findProductCards(document).filter(c => !c.dataset.zalandoHideProcessed);
+  if (unprocessed.length > 0) processBatch(unprocessed);
+}
+
 function hideCard(card) {
   card.style.setProperty('display', 'none', 'important');
+  // Grid reflow may cause React to replace neighboring card elements
+  setTimeout(rescanUnprocessed, 150);
 }
 
 function saveHiddenArticle(articleId) {

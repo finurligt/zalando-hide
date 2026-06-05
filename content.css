@@ -1,7 +1,7 @@
 .zh-hide-btn {
   position: absolute;
   top: 6px;
-  right: 6px;
+  left: 6px;
   z-index: 9999;
 
   width: 28px;
