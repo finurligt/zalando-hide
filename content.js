@@ -161,6 +161,9 @@ function startObserver() {
 }
 
 function initProductPage(articleId) {
+  // Remove any existing PDP button (e.g. after SPA navigation)
+  document.querySelector('.zh-pdp-btn')?.remove();
+
   const btn = document.createElement('button');
   btn.className = 'zh-pdp-btn';
 
@@ -189,25 +192,47 @@ function initProductPage(articleId) {
   });
 
   update();
-  document.body.appendChild(btn);
+
+  // Attach immediately, then re-attach after delays to survive React hydration
+  function attach() {
+    if (!document.body.contains(btn)) document.body.appendChild(btn);
+  }
+  attach();
+  [300, 800, 2000].forEach(d => setTimeout(attach, d));
+}
+
+function onNavigate() {
+  const pdpMatch = location.pathname.match(/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
+  if (pdpMatch) {
+    initProductPage(pdpMatch[1].toUpperCase());
+  } else {
+    document.querySelector('.zh-pdp-btn')?.remove();
+    rescanUnprocessed();
+  }
 }
 
 function init() {
   chrome.storage.local.get(STORAGE_KEY, (data) => {
     hiddenArticles = data[STORAGE_KEY] || {};
 
-    // Check if we're on a product detail page
     const pdpMatch = location.pathname.match(/([A-Z0-9]+-[A-Z0-9]+)\.html$/i);
     if (pdpMatch) {
       initProductPage(pdpMatch[1].toUpperCase());
-      return;
+    } else {
+      processBatch(findProductCards(document));
+      startObserver();
+      setTimeout(rescanUnprocessed, 300);
+      setTimeout(rescanUnprocessed, 1000);
+      setTimeout(rescanUnprocessed, 3000);
     }
 
-    processBatch(findProductCards(document));
-    startObserver();
-    setTimeout(rescanUnprocessed, 300);
-    setTimeout(rescanUnprocessed, 1000);
-    setTimeout(rescanUnprocessed, 3000);
+    // Handle SPA navigation (pushState / popstate)
+    const _pushState = history.pushState.bind(history);
+    history.pushState = function(...args) {
+      _pushState(...args);
+      setTimeout(onNavigate, 200);
+    };
+    window.addEventListener('popstate', () => setTimeout(onNavigate, 200));
   });
 }
 
